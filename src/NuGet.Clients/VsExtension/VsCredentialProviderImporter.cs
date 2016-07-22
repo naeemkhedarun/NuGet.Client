@@ -104,7 +104,10 @@ namespace NuGetVSExtension
                 // Dev15+ will provide a credential provider for VSTS.
                 // If we are in Dev14, and no imported VSTS provider is found,
                 // then fallback on the built-in VisualStudioAccountProvider
-                if (results.FirstOrDefault(p => string.Equals(p.GetType().Name, "VisualStudioAccountProvider", StringComparison.OrdinalIgnoreCase)) == null && IsDev14)
+                if (IsDev14
+                    && results.FirstOrDefault(p => string.Equals(p.GetType().FullName,
+                    "Microsoft.VisualStudio.TeamFoundation.NuGetCredentialProvider.VisualStudioAccountProvider",
+                    StringComparison.OrdinalIgnoreCase)) == null)
                 {
                     // Handle any type load exception constructing the provider
                     try
