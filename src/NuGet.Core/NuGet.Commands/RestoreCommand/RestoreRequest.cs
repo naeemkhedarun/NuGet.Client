@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using NuGet.Common;
 using NuGet.Configuration;
@@ -120,6 +121,9 @@ namespace NuGet.Commands
             DependencyProviders = dependencyProviders;
 
             _disposeProviders = disposeProviders;
+
+            // Default to the project folder
+            RestoreOutputPath = Path.GetDirectoryName(Project.FilePath);
         }
 
         public ILogger Log { get; set; }
@@ -202,6 +206,16 @@ namespace NuGet.Commands
         /// This includes both remote and local package providers.
         /// </summary>
         public RestoreCommandProviders DependencyProviders { get; set; }
+
+        /// <summary>
+        /// Defines the paths and behavior for outputs
+        /// </summary>
+        public RestoreOutputType RestoreOutputType { get; set; } = RestoreOutputType.Unknown;
+
+        /// <summary>
+        /// Restore output path
+        /// </summary>
+        public string RestoreOutputPath { get; set; }
 
         public void Dispose()
         {
