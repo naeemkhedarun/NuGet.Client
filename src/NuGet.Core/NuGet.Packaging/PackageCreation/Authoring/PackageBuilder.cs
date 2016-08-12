@@ -85,6 +85,8 @@ namespace NuGet.Packaging
             set;
         }
 
+        public RepositoryMetadata Repository { get; set; }
+
         public bool HasSnapshotVersion
         {
             get;
