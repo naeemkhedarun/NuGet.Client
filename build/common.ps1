@@ -15,11 +15,14 @@ $Nupkgs = Join-Path $NuGetClientRoot nupkgs
 $Artifacts = Join-Path $NuGetClientRoot artifacts
 
 $DotNetExe = Join-Path $CLIRoot 'dotnet.exe'
-$MSBuildRoot = Join-Path ${env:ProgramFiles(x86)} 'MSBuild\'
+$MSBuildDir = 'MSBuild\'
+$MSBuildRoot = Join-Path ${env:ProgramFiles(x86)} $MSBuildDir
+$VSRoot = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio '
 $MSBuildExeRelPath = 'bin\msbuild.exe'
 $NuGetExe = Join-Path $NuGetClientRoot '.nuget\nuget.exe'
 $XunitConsole = Join-Path $NuGetClientRoot 'packages\xunit.runner.console.2.1.0\tools\xunit.console.exe'
 $ILMerge = Join-Path $NuGetClientRoot 'packages\ILMerge.2.14.1208\tools\ILMerge.exe'
+$MSBuildPath = @{}
 
 Set-Alias dotnet $DotNetExe
 Set-Alias nuget $NuGetExe
@@ -509,8 +512,7 @@ Function Test-MSBuildVersionPresent {
     )
 
    	$MSBuildExe = Get-MSBuildExe $MSBuildVersion
-
-    Test-Path $MSBuildExe
+    $MSBuildExe -ne ""
 }
 
 Function Get-MSBuildExe {
@@ -518,8 +520,31 @@ Function Get-MSBuildExe {
         [string]$MSBuildVersion
     )
 
-    $MSBuildExe = Join-Path $MSBuildRoot ($MSBuildVersion + ".0")
-    Join-Path $MSBuildExe $MSBuildExeRelPath
+    # Test cache
+    if ($MSBuildPath.ContainsKey($MSBuildVersion)) {
+        return $MSBuildPath.Get_Item($MSBuildVersion)
+    }
+
+    # Test non-Willow MSBuild install 
+    $MSBuildExe = Join-Path $MSBuildRoot ($MSBuildVersion + ".0")           # e.g. c:\program files (x86)\MSBuild\14.0
+    $MSBuildExe = Join-Path $MSBuildExe $MSBuildExeRelPath                  #      c:\program files (x86)\MSBuild\14.0\bin\msbuild.exe
+    if (Test-Path $MSBuildExe)
+    {
+        $MSBuildPath.Set_Item($MSBuildVersion, $MSBuildExe)
+        return $MSBuildExe
+    }
+
+    # Test Willow MSBuild install
+    $MSBuildExe = Join-Path ($VSRoot + $MSBuildVersion + ".0") $MSBuildDir  # e.g. c:\program files (x86)\Microsoft Visual Studio 15.0\MSBuild\
+    $MSBuildExe = Join-Path $MSBuildExe ($MSBuildVersion + ".0")            #      c:\program files (x86)\Microsoft Visual Studio 15.0\MSBuild\15.0
+    $MSBuildExe = Join-Path $MSBuildExe $MSBuildExeRelPath                  #      c:\program files (x86)\Microsoft Visual Studio 15.0\MSBuild\15.0\bin\msbuild.exe
+    if (Test-Path $MSBuildExe)
+    {
+        $MSBuildPath.Set_Item($MSBuildVersion, $MSBuildExe)
+        return $MSBuildExe
+    }
+
+    return ""
 }
 
 Function Build-ClientsProjects {

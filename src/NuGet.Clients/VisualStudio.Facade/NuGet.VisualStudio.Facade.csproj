@@ -45,7 +45,15 @@
     <Reference Include="envdte, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
-    <Reference Include="Microsoft.Build, Version=$(VisualStudioVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+  </ItemGroup>
+  <!-- When Microsoft.Build assemblies are available via a nupkg, replace the below with appropriate dependencies in the facade -->
+  <ItemGroup Condition="'$(VisualStudioVersion)' == '14.0'">
+    <Reference Include="Microsoft.Build, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(VisualStudioVersion)' == '15.0'">
+    <Reference Include="Microsoft.Build">
+      <HintPath>$(EnlistmentRoot)\templib\15.0</HintPath>
+    </Reference>
   </ItemGroup>
   <Choose>
     <When Condition="$(VisualStudioVersion)=='14.0'">
