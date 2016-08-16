@@ -19,7 +19,7 @@ namespace NuGet.Protocol
     public class HttpSource : IDisposable
     {
         private readonly Func<Task<HttpHandlerResource>> _messageHandlerFactory;
-        private readonly Uri _baseUri;
+        private readonly Uri _sourceUri;
         private HttpClient _httpClient;
         private string _httpCacheDirectory;
         private readonly PackageSource _packageSource;
@@ -53,7 +53,7 @@ namespace NuGet.Protocol
             }
 
             _packageSource = packageSource;
-            _baseUri = packageSource.SourceUri;
+            _sourceUri = packageSource.SourceUri;
             _messageHandlerFactory = messageHandlerFactory;
             _throttle = throttle;
         }
@@ -68,7 +68,7 @@ namespace NuGet.Protocol
         {
             var result = HttpCacheUtility.InitializeHttpCacheResult(
                 HttpCacheDirectory,
-                _baseUri,
+                _sourceUri,
                 request.CacheKey,
                 request.CacheContext);
 
@@ -142,9 +142,7 @@ namespace NuGet.Protocol
 
                         await HttpCacheUtility.CreateCacheFileAsync(
                             result,
-                            request.Uri,
                             throttledResponse.Response,
-                            request.CacheContext,
                             request.EnsureValidContents,
                             lockedToken);
 

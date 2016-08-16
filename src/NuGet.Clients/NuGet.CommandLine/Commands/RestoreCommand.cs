@@ -102,12 +102,14 @@ namespace NuGet.CommandLine
 
                 using (var cacheContext = new SourceCacheContext())
                 {
-                    var restoreContext = restoreInputs.RestoreV3Context;
+                    // DirectDownload is ignored here because it does not make sense to skip the global packages folder
+                    // when the destination directory for V3 (project.json) restore is the global packages folder!
+                    cacheContext.NoCache = NoCache;
 
+                    var restoreContext = restoreInputs.RestoreV3Context;
                     var providerCache = new RestoreCommandProvidersCache();
 
                     // Add restore args to the restore context
-                    cacheContext.NoCache = NoCache;
                     restoreContext.CacheContext = cacheContext;
                     restoreContext.DisableParallel = DisableParallelProcessing;
                     restoreContext.ConfigFile = ConfigFile;
@@ -333,17 +335,27 @@ namespace NuGet.CommandLine
                 projectContext.PackageExtractionContext.PackageSaveMode = EffectivePackageSaveMode;
             }
 
-            var result = await PackageRestoreManager.RestoreMissingPackagesAsync(
-                packageRestoreContext,
-                projectContext);
+            using (var cacheContext = new SourceCacheContext())
+            {
+                cacheContext.NoCache = NoCache;
 
-            return new RestoreSummary(
-                result.Restored,
-                "packages.config projects",
-                Settings.Priority.Select(x => Path.Combine(x.Root, x.FileName)),
-                packageSources.Select(x => x.Source),
-                installCount,
-                collectorLogger.Errors.Concat(failedEvents.Select(e => e.Exception.Message)));
+                var downloadContext = new PackageDownloadContext(
+                    cacheContext,
+                    directDownloadDirectory: DirectDownload ? packagesFolderPath : null);
+
+                var result = await PackageRestoreManager.RestoreMissingPackagesAsync(
+                    packageRestoreContext,
+                    projectContext,
+                    downloadContext);
+
+                return new RestoreSummary(
+                    result.Restored,
+                    "packages.config projects",
+                    Settings.Priority.Select(x => Path.Combine(x.Root, x.FileName)),
+                    packageSources.Select(x => x.Source),
+                    installCount,
+                    collectorLogger.Errors.Concat(failedEvents.Select(e => e.Exception.Message)));
+            }
         }
 
         private void CheckRequireConsent()

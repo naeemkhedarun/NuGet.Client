@@ -302,14 +302,12 @@ namespace NuGet.CommandLine.Test.Caching
 
         public async Task AddToGlobalPackagesFolderAsync(PackageIdentity identity, string packagePath)
         {
-            var settings = GetGlobalPackagesFolderSettings();
-
             using (var fileStream = new FileStream(packagePath, FileMode.Open, FileAccess.Read))
             {
                 using (await GlobalPackagesFolderUtility.AddPackageAsync(
                     identity,
                     fileStream,
-                    settings,
+                    GlobalPackagesPath,
                     Common.NullLogger.Instance,
                     CancellationToken.None))
                 {
@@ -319,36 +317,40 @@ namespace NuGet.CommandLine.Test.Caching
 
         public void AddPackageToHttpCache(PackageIdentity identity, string packagePath)
         {
-            var result = InitializeHttpCacheResult(identity);
+            using (var sourceCacheContext = new SourceCacheContext())
+            {
+                var result = InitializeHttpCacheResult(identity, sourceCacheContext);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(result.CacheFile));
+                Directory.CreateDirectory(Path.GetDirectoryName(result.CacheFile));
 
-            File.Delete(result.CacheFile);
+                File.Delete(result.CacheFile);
 
-            File.Copy(packagePath, result.CacheFile);
+                File.Copy(packagePath, result.CacheFile);
+            }
         }
 
         public bool IsPackageInHttpCache(PackageIdentity identity)
         {
-            var result = InitializeHttpCacheResult(identity);
+            using (var sourceCacheContext = new SourceCacheContext())
+            {
+                var result = InitializeHttpCacheResult(identity, sourceCacheContext);
 
-            return File.Exists(result.CacheFile);
+                return File.Exists(result.CacheFile);
+            }
         }
 
-        private HttpCacheResult InitializeHttpCacheResult(PackageIdentity identity)
+        private HttpCacheResult InitializeHttpCacheResult(PackageIdentity identity, SourceCacheContext sourceCacheContext)
         {
             return HttpCacheUtility.InitializeHttpCacheResult(
                 NuGetExe.GetHttpCachePath(this),
                 new Uri(CurrentSource),
                 $"nupkg_{identity.Id}.{identity.Version}",
-                new HttpSourceCacheContext());
+                HttpSourceCacheContext.Create(sourceCacheContext, retryCount: 0));
         }
 
         public string GetPackagePathInGlobalPackagesFolder(PackageIdentity identity)
         {
-            var settings = GetGlobalPackagesFolderSettings();
-
-            using (var result = GlobalPackagesFolderUtility.GetPackage(identity, settings))
+            using (var result = GlobalPackagesFolderUtility.GetPackage(identity, GlobalPackagesPath))
             {
                 if (result == null)
                 {
@@ -416,16 +418,6 @@ namespace NuGet.CommandLine.Test.Caching
             }
 
             return args;
-        }
-
-        private Configuration.ISettings GetGlobalPackagesFolderSettings()
-        {
-            var settingsMock = new Mock<Configuration.ISettings>();
-            settingsMock
-                .Setup(x => x.GetValue("config", "globalPackagesFolder", true))
-                .Returns(GlobalPackagesPath);
-            var settings = settingsMock.Object;
-            return settings;
         }
     }
 }

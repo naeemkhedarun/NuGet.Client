@@ -316,7 +316,7 @@ namespace NuGet.Protocol.Tests
             using (var td = TestFileSystemUtility.CreateRandomTestFolder())
             {
                 var tc = new TestContext(td);
-                tc.WriteToCache(tc.CacheKey, tc.CacheContent);
+                await tc.WriteToCacheAsync(tc.CacheKey, tc.CacheContent);
 
                 // Act
                 var result = await tc.HttpSource.GetAsync(
@@ -346,7 +346,7 @@ namespace NuGet.Protocol.Tests
             using (var td = TestFileSystemUtility.CreateRandomTestFolder())
             {
                 var tc = new TestContext(td);
-                tc.WriteToCache(tc.CacheKey, tc.CacheContent);
+                await tc.WriteToCacheAsync(tc.CacheKey, tc.CacheContent);
 
                 // Act
                 var result = await tc.HttpSource.GetAsync(
@@ -371,8 +371,6 @@ namespace NuGet.Protocol.Tests
 
         private class TestContext
         {
-            private readonly string _cacheDirectory;
-
             public TestContext(TestDirectory testDirectory)
             {
                 // data
@@ -386,31 +384,25 @@ namespace NuGet.Protocol.Tests
                 Credentials = new NetworkCredential("foo", "bar");
                 Throttle = new Mock<IThrottle>();
 
-                if (!RuntimeEnvironmentHelper.IsWindows)
-                {
-                    _cacheDirectory = "c810bdb33f8c56015efcaf435f94766aa0c4748c$https:_fake.server_users.json";
-                }
-                else
-                {
-                    // colon is not valid path character on Windows
-                    _cacheDirectory = "c810bdb33f8c56015efcaf435f94766aa0c4748c$https_fake.server_users.json";
-                }
-
                 // dependencies
                 var packageSource = new PackageSource(source);
                 var networkResponses = new Dictionary<string, string> { { Url, NetworkContent } };
                 var messageHandler = new TestMessageHandler(networkResponses, string.Empty);
                 var handlerResource = new TestHttpHandler(messageHandler);
-                CacheContext = new HttpSourceCacheContext();
-                Logger = new TestLogger();
-                TestDirectory = testDirectory;
-                RetryHandlerMock = new Mock<IHttpRetryHandler>();
 
-                // target
-                HttpSource = new HttpSource(packageSource, () => Task.FromResult((HttpHandlerResource)handlerResource), Throttle.Object)
+                using (var cacheContext = new SourceCacheContext())
                 {
-                    HttpCacheDirectory = TestDirectory
-                };
+                    CacheContext = HttpSourceCacheContext.Create(cacheContext, retryCount: 0);
+                    Logger = new TestLogger();
+                    TestDirectory = testDirectory;
+                    RetryHandlerMock = new Mock<IHttpRetryHandler>();
+
+                    // target
+                    HttpSource = new HttpSource(packageSource, () => Task.FromResult((HttpHandlerResource)handlerResource), Throttle.Object)
+                    {
+                        HttpCacheDirectory = TestDirectory
+                    };
+                }
             }
 
             public Exception CacheValidationException { get; }
@@ -440,13 +432,32 @@ namespace NuGet.Protocol.Tests
             public ICredentials Credentials { get; }
             public Mock<IThrottle> Throttle { get; private set; }
 
-            public void WriteToCache(string cacheKey, string content)
+            public async Task WriteToCacheAsync(string cacheKey, string content)
             {
-                var directory = Path.Combine(TestDirectory, _cacheDirectory);
-                Directory.CreateDirectory(directory);
+                var response = new HttpResponseMessage
+                {
+                    Content = new StringContent(content, Encoding.UTF8)
+                };
 
-                var path = Path.Combine(directory, cacheKey + ".dat");
-                File.WriteAllText(path, content, new UTF8Encoding(false));
+                using (response)
+                using (var sourceCacheContext = new SourceCacheContext())
+                {
+                    var httpSourceCacheContext = HttpSourceCacheContext.Create(sourceCacheContext, retryCount: 0);
+
+                    var result = HttpCacheUtility.InitializeHttpCacheResult(
+                        TestDirectory,
+                        new Uri(FakeSource),
+                        cacheKey,
+                        httpSourceCacheContext);
+
+                    await HttpCacheUtility.CreateCacheFileAsync(
+                        result,
+                        response,
+                        stream => { },
+                        CancellationToken.None);
+
+                    result.Stream.Dispose();
+                }
             }
 
             public string ReadStream(Stream stream)

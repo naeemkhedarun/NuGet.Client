@@ -782,10 +782,17 @@ namespace NuGetVSExtension
         {
             await TaskScheduler.Default;
 
-            await PackageRestoreManager.RestoreMissingPackagesAsync(solutionDirectory,
-                packages,
-                NuGetProjectContext,
-                token);
+            using (var cacheContext = new SourceCacheContext())
+            {
+                var downloadContext = new PackageDownloadContext(cacheContext);
+
+                await PackageRestoreManager.RestoreMissingPackagesAsync(
+                    solutionDirectory,
+                    packages,
+                    NuGetProjectContext,
+                    downloadContext,
+                    token);
+            }
         }
 
         /// <summary>

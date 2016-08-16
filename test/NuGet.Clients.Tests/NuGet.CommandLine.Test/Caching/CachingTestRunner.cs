@@ -8,7 +8,7 @@ namespace NuGet.CommandLine.Test.Caching
     {
         public static async Task<CachingValidations> ExecuteAsync(ICachingTest test, ICachingCommand command, INuGetExe nuGetExe, CachingType caching, ServerType server)
         {
-            var testFolder = TestFileSystemUtility.CreateRandomTestFolder();
+            using (var testFolder = TestFileSystemUtility.CreateRandomTestFolder())
             using (var mockServer = new MockServer())
             {
                 var tc = new CachingTestContext(testFolder, mockServer, nuGetExe);
