@@ -14,6 +14,7 @@ namespace NuGet.CommandLine.Test.Caching
                 var tc = new CachingTestContext(testFolder, mockServer, nuGetExe);
 
                 tc.NoCache = caching.HasFlag(CachingType.NoCache);
+                tc.DirectDownload = caching.HasFlag(CachingType.DirectDownload);
                 tc.CurrentSource = server == ServerType.V2 ? tc.V2Source : tc.V3Source;
 
                 tc.ClearHttpCache();

@@ -63,6 +63,7 @@ namespace NuGet.CommandLine.Test.Caching
 
         public string CurrentSource { get; set; }
         public bool NoCache { get; set; }
+        public bool DirectDownload { get; set; }
 
         private void InitializeServer()
         {
@@ -415,6 +416,11 @@ namespace NuGet.CommandLine.Test.Caching
             if (NoCache)
             {
                 args += " -NoCache";
+            }
+
+            if (DirectDownload)
+            {
+                args += " -DirectDownload";
             }
 
             return args;
