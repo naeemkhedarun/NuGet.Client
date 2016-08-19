@@ -147,44 +147,23 @@ namespace NuGet.PackageManagement
         }
 
         [Fact]
-        public async Task TestDirectDownloadByPackageId_InV3()
+        public async Task GetDownloadResourceResultAsync_WithDirectDownloadAndV2Source_SkipsGlobalPackagesFolder()
+        {
+            // Arrange
+            var sourceRepositoryProvider = TestSourceRepositoryUtility.CreateV2OnlySourceRepositoryProvider();
+
+            // Act & Assert
+            await VerifyDirectDownloadSkipsGlobalPackagesFolder(sourceRepositoryProvider);
+        }
+
+        [Fact]
+        public async Task GetDownloadResourceResultAsync_WithDirectDownloadAndV3Source_SkipsGlobalPackagesFolder()
         {
             // Arrange
             var sourceRepositoryProvider = TestSourceRepositoryUtility.CreateV3OnlySourceRepositoryProvider();
-            var v3sourceRepository = sourceRepositoryProvider.GetRepositories().First();
-            var packageIdentity = new PackageIdentity("jQuery", new NuGetVersion("1.8.2"));
 
-            // Act
-            using (var packagesDirectory = TestFileSystemUtility.CreateRandomTestFolder())
-            using (var directDownloadDirectory = TestFileSystemUtility.CreateRandomTestFolder())
-            using (var cacheContext = new SourceCacheContext())
-            {
-                var downloadContext = new PackageDownloadContext(cacheContext, directDownloadDirectory);
-
-                using (var downloadResult = await PackageDownloader.GetDownloadResourceResultAsync(
-                    v3sourceRepository,
-                    packageIdentity,
-                    downloadContext,
-                    packagesDirectory,
-                    NullLogger.Instance,
-                    CancellationToken.None))
-                {
-                    var targetPackageStream = downloadResult.PackageStream;
-
-                    // Assert
-                    // jQuery.1.8.2 is of size 185476 bytes. Make sure the download is successful
-                    Assert.Equal(185476, targetPackageStream.Length);
-                    Assert.True(targetPackageStream.CanSeek);
-                }
-
-                // Verify that the direct download directory is empty. The package should be downloaded to a temporary
-                // file opened with DeleteOnClose.
-                Assert.Equal(0, Directory.EnumerateFileSystemEntries(directDownloadDirectory).Count());
-
-                // Verify that the package was not cached in the Global Packages Folder
-                var globalPackage = GlobalPackagesFolderUtility.GetPackage(packageIdentity, packagesDirectory);
-                Assert.Null(globalPackage);
-            }
+            // Act & Assert
+            await VerifyDirectDownloadSkipsGlobalPackagesFolder(sourceRepositoryProvider);
         }
 
         [Fact]
@@ -271,6 +250,45 @@ namespace NuGet.PackageManagement
 
                 // Assert
                 Assert.True(targetPackageStream.CanSeek);
+            }
+        }
+
+        private static async Task VerifyDirectDownloadSkipsGlobalPackagesFolder(SourceRepositoryProvider sourceRepositoryProvider)
+        {
+            // Arrange
+            var sourceRepository = sourceRepositoryProvider.GetRepositories().First();
+            var packageIdentity = new PackageIdentity("jQuery", new NuGetVersion("1.8.2"));
+
+            using (var packagesDirectory = TestFileSystemUtility.CreateRandomTestFolder())
+            using (var directDownloadDirectory = TestFileSystemUtility.CreateRandomTestFolder())
+            using (var cacheContext = new SourceCacheContext())
+            {
+                var downloadContext = new PackageDownloadContext(cacheContext, directDownloadDirectory);
+
+                // Act
+                using (var downloadResult = await PackageDownloader.GetDownloadResourceResultAsync(
+                    sourceRepository,
+                    packageIdentity,
+                    downloadContext,
+                    packagesDirectory,
+                    NullLogger.Instance,
+                    CancellationToken.None))
+                {
+                    var targetPackageStream = downloadResult.PackageStream;
+
+                    // Assert
+                    // jQuery.1.8.2 is of size 185476 bytes. Make sure the download is successful
+                    Assert.Equal(185476, targetPackageStream.Length);
+                    Assert.True(targetPackageStream.CanSeek);
+                }
+
+                // Verify that the direct download directory is empty. The package should be downloaded to a temporary
+                // file opened with DeleteOnClose.
+                Assert.Equal(0, Directory.EnumerateFileSystemEntries(directDownloadDirectory).Count());
+
+                // Verify that the package was not cached in the Global Packages Folder
+                var globalPackage = GlobalPackagesFolderUtility.GetPackage(packageIdentity, packagesDirectory);
+                Assert.Null(globalPackage);
             }
         }
     }
