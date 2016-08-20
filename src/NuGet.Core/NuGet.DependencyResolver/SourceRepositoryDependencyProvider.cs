@@ -38,23 +38,6 @@ namespace NuGet.DependencyResolver
         public SourceRepositoryDependencyProvider(
             SourceRepository sourceRepository,
             ILogger logger,
-            SourceCacheContext cacheContext)
-            : this(sourceRepository, logger, cacheContext, cacheContext.IgnoreFailedSources)
-        {
-        }
-
-        public SourceRepositoryDependencyProvider(
-           SourceRepository sourceRepository,
-           ILogger logger,
-           SourceCacheContext cacheContext,
-           bool ignoreFailedSources)
-           : this(sourceRepository, logger, cacheContext, ignoreFailedSources, false)
-        {
-        }
-
-        public SourceRepositoryDependencyProvider(
-            SourceRepository sourceRepository,
-            ILogger logger,
             SourceCacheContext cacheContext,
             bool ignoreFailedSources,
             bool ignoreWarning)
