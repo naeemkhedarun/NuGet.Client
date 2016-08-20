@@ -356,7 +356,14 @@ namespace NuGet.CommandLine.Test.Caching
         {
             await Task.Yield();
 
-            return NuGetExe.GetBuiltNuGetExe();
+            var nuGetExe = NuGetExe.GetBuiltNuGetExe();
+
+            // Uncomment this to debug all executions of nuget.exe. Note that this can include setup or assertion
+            // executions in addition to the nuget.exe execution that is under test.
+            //
+            // nuGetExe.Debug = true;
+
+            return nuGetExe;
         }
     }
 }

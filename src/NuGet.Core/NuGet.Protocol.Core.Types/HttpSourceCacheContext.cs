@@ -7,7 +7,7 @@ namespace NuGet.Protocol.Core.Types
 {
     public class HttpSourceCacheContext
     {
-        public HttpSourceCacheContext(string rootTempFolder, TimeSpan maxAge)
+        private HttpSourceCacheContext(string rootTempFolder, TimeSpan maxAge)
         {
             if (rootTempFolder == null)
             {

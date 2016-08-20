@@ -24,7 +24,7 @@ namespace NuGet.Protocol.Core.Types
         private static readonly TimeSpan DefaultMaxAge = TimeSpan.FromMinutes(30);
 
         /// <summary>
-        /// If set, ignore the disk cache when listing and downloading packages
+        /// If set, the disk cache will not be read from or written to. Instead, a temporary cache folder is used.
         /// </summary>
         public bool NoCache { get; set; }
 
