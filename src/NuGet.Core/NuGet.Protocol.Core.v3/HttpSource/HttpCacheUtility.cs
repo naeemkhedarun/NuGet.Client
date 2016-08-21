@@ -35,23 +35,20 @@ namespace NuGet.Protocol
             // When the MaxAge is TimeSpan.Zero, this means the caller is passing is using a temporary directory for
             // cache files, instead of the global HTTP cache used by default. Additionally, the cleaning up of this
             // directory is the responsibility of the caller.
-            string readFile;
-            string newFile;
-            string writeFile;
             if (!context.MaxAge.Equals(TimeSpan.Zero))
             {
-                readFile = cacheFile;
-                newFile = newCacheFile;
-                writeFile = cacheFile;
+                return new HttpCacheResult(
+                    context.MaxAge,
+                    newCacheFile,
+                    cacheFile);
             }
             else
             {
-                readFile = temporaryFile;
-                newFile = newTemporaryFile;
-                writeFile = temporaryFile;
+                return new HttpCacheResult(
+                    context.MaxAge,
+                    newTemporaryFile,
+                    temporaryFile);
             }
-
-            return new HttpCacheResult(context.MaxAge, readFile, newFile, writeFile);
         }
 
         private static string ComputeHash(string value)
@@ -110,7 +107,7 @@ namespace NuGet.Protocol
             // Get the cache file directories, so we can make sure they are created before writing
             // files to them.
             var newCacheFileDirectory = Path.GetDirectoryName(result.NewFile);
-            var cacheFileDirectory = Path.GetDirectoryName(result.WriteFile);
+            var cacheFileDirectory = Path.GetDirectoryName(result.CacheFile);
 
             // Make sure the new cache file directory is created before writing a file to it.
             Directory.CreateDirectory(newCacheFileDirectory);
@@ -136,14 +133,14 @@ namespace NuGet.Protocol
                 ensureValidContents?.Invoke(fileStream);
             }
 
-            if (File.Exists(result.WriteFile))
+            if (File.Exists(result.CacheFile))
             {
                 // Process B can perform deletion on an opened file if the file is opened by process A
                 // with FileShare.Delete flag. However, the file won't be actually deleted until A close it.
                 // This special feature can cause race condition, so we never delete an opened file.
-                if (!IsFileAlreadyOpen(result.WriteFile))
+                if (!IsFileAlreadyOpen(result.CacheFile))
                 {
-                    File.Delete(result.WriteFile);
+                    File.Delete(result.CacheFile);
                 }
             }
 
@@ -155,18 +152,18 @@ namespace NuGet.Protocol
 
             // If the destination file doesn't exist, we can safely perform moving operation.
             // Otherwise, moving operation will fail.
-            if (!File.Exists(result.WriteFile))
+            if (!File.Exists(result.CacheFile))
             {
                 File.Move(
                     result.NewFile,
-                    result.WriteFile);
+                    result.CacheFile);
             }
 
             // Even the file deletion operation above succeeds but the file is not actually deleted,
             // we can still safely read it because it means that some other process just updated it
             // and we don't need to update it with the same content again.
             result.Stream = new FileStream(
-                result.WriteFile,
+                result.CacheFile,
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read | FileShare.Delete,

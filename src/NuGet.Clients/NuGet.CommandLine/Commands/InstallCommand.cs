@@ -188,6 +188,7 @@ namespace NuGet.CommandLine
             using (var cacheContext = new SourceCacheContext())
             {
                 cacheContext.NoCache = NoCache;
+                cacheContext.DirectDownload = DirectDownload;
 
                 var downloadContext = new PackageDownloadContext(
                     cacheContext,
@@ -284,6 +285,7 @@ namespace NuGet.CommandLine
                 using(var cacheContext = new SourceCacheContext())
                 {
                     cacheContext.NoCache = NoCache;
+                    cacheContext.DirectDownload = DirectDownload;
 
                     var downloadContext = new PackageDownloadContext(
                         cacheContext,

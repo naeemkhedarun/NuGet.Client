@@ -102,9 +102,8 @@ namespace NuGet.CommandLine
 
                 using (var cacheContext = new SourceCacheContext())
                 {
-                    // DirectDownload is ignored here because it does not make sense to skip the global packages folder
-                    // when the destination directory for V3 (project.json) restore is the global packages folder!
                     cacheContext.NoCache = NoCache;
+                    cacheContext.DirectDownload = DirectDownload;
 
                     var restoreContext = restoreInputs.RestoreV3Context;
                     var providerCache = new RestoreCommandProvidersCache();
@@ -338,6 +337,7 @@ namespace NuGet.CommandLine
             using (var cacheContext = new SourceCacheContext())
             {
                 cacheContext.NoCache = NoCache;
+                cacheContext.DirectDownload = DirectDownload;
 
                 var downloadContext = new PackageDownloadContext(
                     cacheContext,

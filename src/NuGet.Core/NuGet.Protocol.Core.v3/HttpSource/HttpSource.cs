@@ -74,10 +74,10 @@ namespace NuGet.Protocol
                 request.CacheContext);
 
             return await ConcurrencyUtilities.ExecuteWithFileLockedAsync(
-                cacheResult.ReadFile,
+                cacheResult.CacheFile,
                 action: async lockedToken =>
                 {
-                    cacheResult.Stream = TryReadCacheFile(request.Uri, cacheResult.MaxAge, cacheResult.ReadFile);
+                    cacheResult.Stream = TryReadCacheFile(request.Uri, cacheResult.MaxAge, cacheResult.CacheFile);
 
                     if (cacheResult.Stream != null)
                     {
@@ -92,7 +92,7 @@ namespace NuGet.Protocol
 
                             var httpSourceResult = new HttpSourceResult(
                                 HttpSourceResultStatus.OpenedFromDisk,
-                                cacheResult.ReadFile,
+                                cacheResult.CacheFile,
                                 cacheResult.Stream);
 
                             return await processAsync(httpSourceResult);
@@ -157,7 +157,7 @@ namespace NuGet.Protocol
 
                             using (var httpSourceResult = new HttpSourceResult(
                                 HttpSourceResultStatus.OpenedFromDisk,
-                                cacheResult.ReadFile,
+                                cacheResult.CacheFile,
                                 cacheResult.Stream))
                             {
                                 return await processAsync(httpSourceResult);
@@ -168,7 +168,7 @@ namespace NuGet.Protocol
                             // Note that we do not execute the content validator on the response stream when skipping
                             // the cache. We cannot seek on the network stream and it is not valuable to download the
                             // content twice just to validate the first time (considering that the second download could
-                            // be different from the first).
+                            // be different from the first thus rendering the first validation meaningless).
                             using (var stream = await throttledResponse.Response.Content.ReadAsStreamAsync())
                             using (var httpSourceResult = new HttpSourceResult(
                                 HttpSourceResultStatus.OpenedFromNetwork,
