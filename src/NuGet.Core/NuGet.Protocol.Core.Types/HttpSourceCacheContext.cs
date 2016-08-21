@@ -7,7 +7,7 @@ namespace NuGet.Protocol.Core.Types
 {
     public class HttpSourceCacheContext
     {
-        private HttpSourceCacheContext(string rootTempFolder, TimeSpan maxAge)
+        private HttpSourceCacheContext(string rootTempFolder, TimeSpan maxAge, bool directDownload)
         {
             if (rootTempFolder == null)
             {
@@ -16,6 +16,7 @@ namespace NuGet.Protocol.Core.Types
 
             RootTempFolder = rootTempFolder;
             MaxAge = maxAge;
+            DirectDownload = directDownload;
         }
 
         public TimeSpan MaxAge { get; }
@@ -26,6 +27,8 @@ namespace NuGet.Protocol.Core.Types
         /// </summary>
         public string RootTempFolder { get; }
 
+        public bool DirectDownload { get; }
+
         public static HttpSourceCacheContext Create(SourceCacheContext cacheContext, int retryCount)
         {
             if (cacheContext == null)
@@ -35,11 +38,17 @@ namespace NuGet.Protocol.Core.Types
 
             if (retryCount == 0)
             {
-                return new HttpSourceCacheContext(cacheContext.GeneratedTempFolder, cacheContext.MaxAgeTimeSpan);
+                return new HttpSourceCacheContext(
+                    cacheContext.GeneratedTempFolder,
+                    cacheContext.MaxAgeTimeSpan,
+                    cacheContext.DirectDownload);
             }
             else
             {
-                return new HttpSourceCacheContext(cacheContext.GeneratedTempFolder, TimeSpan.Zero);
+                return new HttpSourceCacheContext(
+                    cacheContext.GeneratedTempFolder,
+                    TimeSpan.Zero,
+                    cacheContext.DirectDownload);
             }
         }
     }

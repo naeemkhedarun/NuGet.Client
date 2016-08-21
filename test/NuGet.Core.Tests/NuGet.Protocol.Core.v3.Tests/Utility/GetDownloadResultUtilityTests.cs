@@ -63,7 +63,7 @@ namespace NuGet.Protocol.Tests
 
                     var files = Directory.EnumerateFileSystemEntries(downloadDirectory).ToArray();
                     Assert.Equal(1, files.Length);
-                    Assert.StartsWith("packagea.1.0.0-beta.", Path.GetFileName(files[0]));
+                    Assert.EndsWith(".nugetdirectdownload", Path.GetFileName(files[0]));
 
                     Assert.Equal(0, Directory.EnumerateFileSystemEntries(globalPackagesFolder).Count());
 
@@ -121,8 +121,8 @@ namespace NuGet.Protocol.Tests
                     // Assert
                     var files = Directory.EnumerateFileSystemEntries(downloadDirectory).ToArray();
                     Assert.Equal(2, files.Length);
-                    Assert.StartsWith("packagea.1.0.0-beta.", Path.GetFileName(files[0]));
-                    Assert.StartsWith("packagea.1.0.0-beta.", Path.GetFileName(files[1]));
+                    Assert.EndsWith(".nugetdirectdownload", Path.GetFileName(files[0]));
+                    Assert.EndsWith(".nugetdirectdownload", Path.GetFileName(files[1]));
 
                     var actualContentA = new StreamReader(resultA.PackageStream).ReadToEnd();
                     Assert.Equal(expectedContent, actualContentA);
@@ -133,6 +133,57 @@ namespace NuGet.Protocol.Tests
 
                 Assert.Equal(0, Directory.EnumerateFileSystemEntries(downloadDirectory).Count());
                 Assert.Equal(0, Directory.EnumerateFileSystemEntries(globalPackagesFolder).Count());
+            }
+        }
+
+        [Fact]
+        public void GetDownloadResultUtility_OnlyCleansUpDirectDownloadFilesItCanAccess()
+        {
+            // Arrange
+            using (var cacheContext = new SourceCacheContext())
+            using (var downloadDirectory = TestFileSystemUtility.CreateRandomTestFolder())
+            {
+                var downloadContext = new PackageDownloadContext(
+                    cacheContext,
+                    downloadDirectory);
+
+                var deletePathA = Path.Combine(downloadDirectory, "packageA.nugetdirectdownload");
+                File.WriteAllText(deletePathA, string.Empty);
+
+                var deletePathB = Path.Combine(downloadDirectory, "packageB.nugetdirectdownload");
+                File.WriteAllText(deletePathB, string.Empty);
+
+                // Ignored because it's in a child directory.
+                var nestedPath = Path.Combine(downloadDirectory, "nested", "packageB.nugetdirectdownload");
+                Directory.CreateDirectory(Path.GetDirectoryName(nestedPath));
+                File.WriteAllText(nestedPath, string.Empty);
+
+                // Ignored because it doesn't match the file pattern.
+                var ignorePath = Path.Combine(downloadDirectory, "something-else-entirely");
+                File.WriteAllText(ignorePath, string.Empty);
+
+                // Ignored because it is use.
+                var inUsePath = Path.Combine(downloadDirectory, "FileShare.ReadWrite.nugetdirectdownload");
+                File.WriteAllText(inUsePath, string.Empty);
+
+                using (new FileStream(
+                    inUsePath,
+                    FileMode.Create,
+                    FileAccess.ReadWrite,
+                    FileShare.Read,
+                    bufferSize: 8192,
+                    options: FileOptions.Asynchronous | FileOptions.DeleteOnClose))
+                {
+                    // Act
+                    GetDownloadResultUtility.CleanUpDirectDownloads(downloadContext);
+
+                    // Assert
+                    Assert.False(File.Exists(deletePathA));
+                    Assert.False(File.Exists(deletePathB));
+                    Assert.True(File.Exists(nestedPath));
+                    Assert.True(File.Exists(ignorePath));
+                    Assert.True(File.Exists(inUsePath));
+                }
             }
         }
     }

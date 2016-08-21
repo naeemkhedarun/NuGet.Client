@@ -24,9 +24,14 @@ namespace NuGet.Protocol.Core.Types
         private static readonly TimeSpan DefaultMaxAge = TimeSpan.FromMinutes(30);
 
         /// <summary>
-        /// If set, the disk cache will not be read from or written to. Instead, a temporary cache folder is used.
+        /// If set, the disk cache will not be read from.
         /// </summary>
         public bool NoCache { get; set; }
+
+        /// <summary>
+        /// If set, the disk cache will not be written to. Instead, a temporary cache folder is used.
+        /// </summary>
+        public bool DirectDownload { get; set; }
 
         /// <summary>
         /// Package version lists or packages from the server older than this date will be fetched from the server.

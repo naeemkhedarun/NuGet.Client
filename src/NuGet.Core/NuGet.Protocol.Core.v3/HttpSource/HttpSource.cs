@@ -66,38 +66,38 @@ namespace NuGet.Protocol
             ILogger log,
             CancellationToken token)
         {
-            var result = HttpCacheUtility.InitializeHttpCacheResult(
+            var cacheResult = HttpCacheUtility.InitializeHttpCacheResult(
                 HttpCacheDirectory,
                 _sourceUri,
                 request.CacheKey,
                 request.CacheContext);
 
             return await ConcurrencyUtilities.ExecuteWithFileLockedAsync(
-                result.CacheFile,
+                cacheResult.ReadFile,
                 action: async lockedToken =>
                 {
-                    result.Stream = TryReadCacheFile(request.Uri, result.MaxAge, result.CacheFile);
+                    cacheResult.Stream = TryReadCacheFile(request.Uri, cacheResult.MaxAge, cacheResult.ReadFile);
 
-                    if (result.Stream != null)
+                    if (cacheResult.Stream != null)
                     {
                         log.LogInformation(string.Format(CultureInfo.InvariantCulture, "  " + Strings.Http_RequestLog, "CACHE", request.Uri));
 
                         // Validate the content fetched from the cache.
                         try
                         {
-                            request.EnsureValidContents?.Invoke(result.Stream);
+                            request.EnsureValidContents?.Invoke(cacheResult.Stream);
 
-                            result.Stream.Seek(0, SeekOrigin.Begin);
+                            cacheResult.Stream.Seek(0, SeekOrigin.Begin);
 
                             return new HttpSourceResult(
                                 HttpSourceResultStatus.OpenedFromDisk,
-                                result.CacheFile,
-                                result.Stream);
+                                cacheResult.ReadFile,
+                                cacheResult.Stream);
                         }
                         catch (Exception e)
                         {
-                            result.Stream.Dispose();
-                            result.Stream = null;
+                            cacheResult.Stream.Dispose();
+                            cacheResult.Stream = null;
 
                             string message = string.Format(CultureInfo.CurrentCulture, Strings.Log_InvalidCacheEntry, request.Uri)
                                              + Environment.NewLine
@@ -141,15 +141,15 @@ namespace NuGet.Protocol
                         throttledResponse.Response.EnsureSuccessStatusCode();
 
                         await HttpCacheUtility.CreateCacheFileAsync(
-                            result,
+                            cacheResult,
                             throttledResponse.Response,
                             request.EnsureValidContents,
                             lockedToken);
 
                         return new HttpSourceResult(
                             HttpSourceResultStatus.OpenedFromDisk,
-                            result.CacheFile,
-                            result.Stream);
+                            cacheResult.ReadFile,
+                            cacheResult.Stream);
                     }
                 },
                 token: token);

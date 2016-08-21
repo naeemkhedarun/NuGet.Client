@@ -16,6 +16,8 @@ namespace NuGet.Protocol
     public static class GetDownloadResultUtility
     {
         private const int BufferSize = 8192;
+        private const string DirectDownloadExtension = ".nugetdirectdownload";
+        private const string DirectDownloadPattern = "*" + DirectDownloadExtension;
 
         public static async Task<DownloadResourceResult> GetDownloadResultAsync(
            HttpSource client,
@@ -100,6 +102,32 @@ namespace NuGet.Protocol
             throw new InvalidOperationException("Reached an unexpected point in the code");
         }
 
+        /// <summary>
+        /// Allow explicit clean-up of direct download files. This is important because although direct downloads are
+        /// opened with the <see cref="FileOptions.DeleteOnClose"/> option, some systems (e.g. Linux) do not perform
+        /// the delete if the process dies. Additionally, if the system dies before the process dies (e.g. loss of
+        /// power), the direct download files will be left over.
+        /// </summary>
+        /// <param name="downloadContext">The download context.</param>
+        public static void CleanUpDirectDownloads(PackageDownloadContext downloadContext)
+        {
+            foreach (var file in Directory.EnumerateFiles(
+                downloadContext.DirectDownloadDirectory,
+                DirectDownloadPattern,
+                SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception e) when (e is UnauthorizedAccessException ||
+                                          e is IOException)
+                {
+                    // Ignore exceptions indicating the file has permissions protecting it or if the file is in use.
+                }
+            }
+        }
+
         private static async Task<DownloadResourceResult> DirectDownloadAsync(
             PackageIdentity packageIdentity,
             Stream packageStream,
@@ -126,13 +154,9 @@ namespace NuGet.Protocol
             // provides a directory so that a high performance or local drive can be used (instead of the %TEMP%
             // directory which can be different from the extraction location). The random file name is not just a
             // performance optimization. This also means that future versions of NuGet can co-exist with this
-            // extraction code since the random component is specifically designed to avoid collisions. We include the
-            // package ID and version only for human readability. The random component of the file name already gives 
-            // us enough entropy.
-            var lowerId = packageIdentity.Id.ToLowerInvariant();
-            var lowerVersion = packageIdentity.Version.ToNormalizedString().ToLowerInvariant();
+            // extraction code since the random component is specifically designed to avoid collisions.
             var randomComponent = Path.GetRandomFileName();
-            var fileName = $"{lowerId}.{lowerVersion}.{randomComponent}";
+            var fileName = $"{randomComponent}{DirectDownloadExtension}";
             var directDownloadPath = Path.Combine(downloadContext.DirectDownloadDirectory, fileName);
 
             FileStream fileStream = null;

@@ -8,16 +8,18 @@ namespace NuGet.Protocol
 {
     public class HttpCacheResult
     {
-        public HttpCacheResult(TimeSpan maxAge, string newCacheFile, string cacheFile)
+        public HttpCacheResult(TimeSpan maxAge, string readFile, string newFile, string writeFile)
         {
             MaxAge = maxAge;
-            NewCacheFile = newCacheFile;
-            CacheFile = cacheFile;
+            ReadFile = readFile;
+            NewFile = newFile;
+            WriteFile = writeFile;
         }
 
         public TimeSpan MaxAge { get; }
-        public string NewCacheFile { get; }
-        public string CacheFile { get; }
+        public string ReadFile { get; }
+        public string NewFile { get; }
+        public string WriteFile { get; }
         public Stream Stream { get; set; }
     }
 }

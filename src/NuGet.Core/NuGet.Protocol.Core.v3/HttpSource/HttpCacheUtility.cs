@@ -23,31 +23,43 @@ namespace NuGet.Protocol
             string cacheKey,
             HttpSourceCacheContext context)
         {
-            // When the MaxAge is TimeSpan.Zero, this means the caller is passing in a folder different than
-            // the global HTTP cache used by default. Additionally, creating and cleaning up the directory is
-            // all the responsibility of the caller.
-            var maxAge = context.MaxAge;
-            string newFile;
-            string cacheFile;
-            if (!maxAge.Equals(TimeSpan.Zero))
+            var baseFolderName = RemoveInvalidFileNameChars(ComputeHash(sourceUri.OriginalString));
+            var baseFileName = RemoveInvalidFileNameChars(cacheKey) + ".dat";
+            var cacheFolder = Path.Combine(httpCacheDirectory, baseFolderName);
+            var cacheFile = Path.Combine(cacheFolder, baseFileName);
+            var newCacheFile = cacheFile + "-new";
+
+            var temporaryFile = Path.Combine(context.RootTempFolder, Path.GetRandomFileName());
+            var newTemporaryFile = Path.Combine(context.RootTempFolder, Path.GetRandomFileName());
+
+            // When the MaxAge is TimeSpan.Zero, this means the caller is passing is using a temporary directory for
+            // cache files, instead of the global HTTP cache used by default. Additionally, the cleaning up of this
+            // directory is the responsibility of the caller.
+            string readFile;
+            if (!context.MaxAge.Equals(TimeSpan.Zero))
             {
-                var baseFolderName = RemoveInvalidFileNameChars(ComputeHash(sourceUri.OriginalString));
-                var baseFileName = RemoveInvalidFileNameChars(cacheKey) + ".dat";
-
-                var cacheFolder = Path.Combine(httpCacheDirectory, baseFolderName);
-
-                cacheFile = Path.Combine(cacheFolder, baseFileName);
-
-                newFile = cacheFile + "-new";
+                readFile = cacheFile;
             }
             else
             {
-                cacheFile = Path.Combine(context.RootTempFolder, Path.GetRandomFileName());
-
-                newFile = Path.Combine(context.RootTempFolder, Path.GetRandomFileName());
+                readFile = temporaryFile;
             }
 
-            return new HttpCacheResult(maxAge, newFile, cacheFile);
+            // When DirectDownload is true, this means the caller does not want the global HTTP cache to be written to.
+            string newFile;
+            string writeFile;
+            if (!context.DirectDownload)
+            {
+                newFile = newCacheFile;
+                writeFile = cacheFile;
+            }
+            else
+            {
+                newFile = newTemporaryFile;
+                writeFile = temporaryFile;
+            }
+
+            return new HttpCacheResult(context.MaxAge, readFile, newFile, writeFile);
         }
 
         private static string ComputeHash(string value)
@@ -105,8 +117,8 @@ namespace NuGet.Protocol
         {
             // Get the cache file directories, so we can make sure they are created before writing
             // files to them.
-            var newCacheFileDirectory = Path.GetDirectoryName(result.NewCacheFile);
-            var cacheFileDirectory = Path.GetDirectoryName(result.CacheFile);
+            var newCacheFileDirectory = Path.GetDirectoryName(result.NewFile);
+            var cacheFileDirectory = Path.GetDirectoryName(result.WriteFile);
 
             // Make sure the new cache file directory is created before writing a file to it.
             Directory.CreateDirectory(newCacheFileDirectory);
@@ -115,7 +127,7 @@ namespace NuGet.Protocol
             // 1) Delete the old file.
             // 2) Create a new file with the same name.
             using (var fileStream = new FileStream(
-                result.NewCacheFile,
+                result.NewFile,
                 FileMode.Create,
                 FileAccess.ReadWrite,
                 FileShare.None,
@@ -132,14 +144,14 @@ namespace NuGet.Protocol
                 ensureValidContents?.Invoke(fileStream);
             }
 
-            if (File.Exists(result.CacheFile))
+            if (File.Exists(result.WriteFile))
             {
                 // Process B can perform deletion on an opened file if the file is opened by process A
                 // with FileShare.Delete flag. However, the file won't be actually deleted until A close it.
                 // This special feature can cause race condition, so we never delete an opened file.
-                if (!IsFileAlreadyOpen(result.CacheFile))
+                if (!IsFileAlreadyOpen(result.WriteFile))
                 {
-                    File.Delete(result.CacheFile);
+                    File.Delete(result.WriteFile);
                 }
             }
 
@@ -151,18 +163,18 @@ namespace NuGet.Protocol
 
             // If the destination file doesn't exist, we can safely perform moving operation.
             // Otherwise, moving operation will fail.
-            if (!File.Exists(result.CacheFile))
+            if (!File.Exists(result.WriteFile))
             {
                 File.Move(
-                    result.NewCacheFile,
-                    result.CacheFile);
+                    result.NewFile,
+                    result.WriteFile);
             }
 
             // Even the file deletion operation above succeeds but the file is not actually deleted,
             // we can still safely read it because it means that some other process just updated it
             // and we don't need to update it with the same content again.
             result.Stream = new FileStream(
-                result.CacheFile,
+                result.WriteFile,
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read | FileShare.Delete,
