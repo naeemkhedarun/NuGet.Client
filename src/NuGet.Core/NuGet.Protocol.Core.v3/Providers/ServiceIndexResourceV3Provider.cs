@@ -121,7 +121,7 @@ namespace NuGet.Protocol
 
                     try
                     {
-                        using (var sourceResponse = await client.GetAsync(
+                        return await client.GetAsync(
                             new HttpSourceCachedRequest(
                                 url,
                                 "service_index",
@@ -129,11 +129,14 @@ namespace NuGet.Protocol
                             {
                                 EnsureValidContents = stream => HttpStreamValidation.ValidateJObject(url, stream)
                             },
+                            httpSourceResult =>
+                            {
+                                var result = ConsumeServiceIndexStream(httpSourceResult.Stream, utcNow);
+
+                                return Task.FromResult(result);
+                            },
                             log,
-                            token))
-                        {
-                            return ConsumeServiceIndexStream(sourceResponse.Stream, utcNow);
-                        }
+                            token);
                     }
                     catch (Exception ex) when (retry < 2)
                     {

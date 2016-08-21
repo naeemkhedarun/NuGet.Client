@@ -7,13 +7,16 @@ namespace NuGet.Protocol.Core.Types
 {
     public class HttpSourceCacheContext
     {
-        private HttpSourceCacheContext(string rootTempFolder, TimeSpan maxAge)
+        private HttpSourceCacheContext(string rootTempFolder, TimeSpan maxAge, bool directDownload)
         {
             RootTempFolder = rootTempFolder;
             MaxAge = maxAge;
+            DirectDownload = directDownload;
         }
 
         public TimeSpan MaxAge { get; }
+
+        public bool DirectDownload { get; }
 
         /// <summary>
         /// A suggested root folder to drop temporary files under, it will get cleared by the
@@ -30,11 +33,17 @@ namespace NuGet.Protocol.Core.Types
 
             if (retryCount == 0)
             {
-                return new HttpSourceCacheContext(cacheContext.GeneratedTempFolder, cacheContext.MaxAgeTimeSpan);
+                return new HttpSourceCacheContext(
+                    cacheContext.GeneratedTempFolder,
+                    cacheContext.MaxAgeTimeSpan,
+                    cacheContext.DirectDownload);
             }
             else
             {
-                return new HttpSourceCacheContext(cacheContext.GeneratedTempFolder, TimeSpan.Zero);
+                return new HttpSourceCacheContext(
+                    cacheContext.GeneratedTempFolder,
+                    TimeSpan.Zero,
+                    cacheContext.DirectDownload);
             }
         }
     }

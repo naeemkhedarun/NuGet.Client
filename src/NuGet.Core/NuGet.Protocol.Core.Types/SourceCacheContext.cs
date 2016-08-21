@@ -30,6 +30,11 @@ namespace NuGet.Protocol.Core.Types
         public bool NoCache { get; set; }
 
         /// <summary>
+        /// If set, the global disk cache will not be written to.
+        /// </summary>
+        public bool DirectDownload { get; set; }
+
+        /// <summary>
         /// Package version lists or packages from the server older than this date will be fetched from the server.
         /// </summary>
         /// <remarks>This will be ignored if <see cref="NoCache"/> is true.</remarks>

@@ -61,8 +61,9 @@ namespace NuGet.Protocol
         /// <summary>
         /// Caching Get request.
         /// </summary>
-        public async Task<HttpSourceResult> GetAsync(
+        public async Task<T> GetAsync<T>(
             HttpSourceCachedRequest request,
+            Func<HttpSourceResult, Task<T>> processAsync,
             ILogger log,
             CancellationToken token)
         {
@@ -89,10 +90,12 @@ namespace NuGet.Protocol
 
                             cacheResult.Stream.Seek(0, SeekOrigin.Begin);
 
-                            return new HttpSourceResult(
+                            var httpSourceResult = new HttpSourceResult(
                                 HttpSourceResultStatus.OpenedFromDisk,
                                 cacheResult.ReadFile,
                                 cacheResult.Stream);
+
+                            return await processAsync(httpSourceResult);
                         }
                         catch (Exception e)
                         {
@@ -129,27 +132,52 @@ namespace NuGet.Protocol
                     {
                         if (request.IgnoreNotFounds && throttledResponse.Response.StatusCode == HttpStatusCode.NotFound)
                         {
-                            return new HttpSourceResult(HttpSourceResultStatus.NotFound);
+                            var httpSourceResult = new HttpSourceResult(HttpSourceResultStatus.NotFound);
+
+                            return await processAsync(httpSourceResult);
                         }
 
                         if (throttledResponse.Response.StatusCode == HttpStatusCode.NoContent)
                         {
                             // Ignore reading and caching the empty stream.
-                            return new HttpSourceResult(HttpSourceResultStatus.NoContent);
+                            var httpSourceResult = new HttpSourceResult(HttpSourceResultStatus.NoContent);
+
+                            return await processAsync(httpSourceResult);
                         }
 
                         throttledResponse.Response.EnsureSuccessStatusCode();
 
-                        await HttpCacheUtility.CreateCacheFileAsync(
-                            cacheResult,
-                            throttledResponse.Response,
-                            request.EnsureValidContents,
-                            lockedToken);
+                        if (!request.CacheContext.DirectDownload)
+                        {
+                            await HttpCacheUtility.CreateCacheFileAsync(
+                                cacheResult,
+                                throttledResponse.Response,
+                                request.EnsureValidContents,
+                                lockedToken);
 
-                        return new HttpSourceResult(
-                            HttpSourceResultStatus.OpenedFromDisk,
-                            cacheResult.ReadFile,
-                            cacheResult.Stream);
+                            using (var httpSourceResult = new HttpSourceResult(
+                                HttpSourceResultStatus.OpenedFromDisk,
+                                cacheResult.ReadFile,
+                                cacheResult.Stream))
+                            {
+                                return await processAsync(httpSourceResult);
+                            }
+                        }
+                        else
+                        {
+                            // Note that we do not execute the content validator on the response stream when skipping
+                            // the cache. We cannot seek on the network stream and it is not valuable to download the
+                            // content twice just to validate the first time (considering that the second download could
+                            // be different from the first).
+                            using (var stream = await throttledResponse.Response.Content.ReadAsStreamAsync())
+                            using (var httpSourceResult = new HttpSourceResult(
+                                HttpSourceResultStatus.OpenedFromNetwork,
+                                cacheFileName: null,
+                                stream: stream))
+                            {
+                                return await processAsync(httpSourceResult);
+                            }
+                        }
                     }
                 },
                 token: token);
