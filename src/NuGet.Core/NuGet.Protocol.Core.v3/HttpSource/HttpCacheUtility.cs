@@ -36,25 +36,17 @@ namespace NuGet.Protocol
             // cache files, instead of the global HTTP cache used by default. Additionally, the cleaning up of this
             // directory is the responsibility of the caller.
             string readFile;
+            string newFile;
+            string writeFile;
             if (!context.MaxAge.Equals(TimeSpan.Zero))
             {
                 readFile = cacheFile;
-            }
-            else
-            {
-                readFile = temporaryFile;
-            }
-
-            // When DirectDownload is true, this means the caller does not want the global HTTP cache to be written to.
-            string newFile;
-            string writeFile;
-            if (!context.DirectDownload)
-            {
                 newFile = newCacheFile;
                 writeFile = cacheFile;
             }
             else
             {
+                readFile = temporaryFile;
                 newFile = newTemporaryFile;
                 writeFile = temporaryFile;
             }
