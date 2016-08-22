@@ -247,8 +247,7 @@ namespace NuGet.Protocol
                             httpSourceCacheContext)
                         {
                             EnsureValidContents = stream => HttpStreamValidation.ValidateNupkg(url, stream),
-                            IgnoreNotFounds = true,
-                            MaxTries = 1
+                            IgnoreNotFounds = true
                         },
                         async httpSourceResult => await processAsync(httpSourceResult),
                         _logger,
