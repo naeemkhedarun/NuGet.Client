@@ -59,14 +59,11 @@ namespace NuGet.Protocol
                 return null;
             }
 
-            var reader = await PackageUtilities.OpenNuspecFromNupkgAsync(
-                packageInfo.Identity.Id,
-                _nupkgDownloader.OpenNupkgStreamAsync(
-                    packageInfo.Identity,
-                    packageInfo.ContentUri,
-                    CacheContext,
-                    cancellationToken),
-                Logger);
+            var reader = await _nupkgDownloader.GetNuspecReaderFromNupkgAsync(
+                packageInfo.Identity,
+                packageInfo.ContentUri,
+                CacheContext,
+                cancellationToken);
 
             return GetDependencyInfo(reader);
         }

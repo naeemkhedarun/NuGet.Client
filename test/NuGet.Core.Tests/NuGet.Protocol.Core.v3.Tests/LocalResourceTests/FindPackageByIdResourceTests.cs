@@ -1,4 +1,8 @@
-﻿using System.Collections.Generic;
+﻿// Copyright (c) .NET Foundation. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
+
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -52,18 +56,19 @@ namespace NuGet.Protocol.Core.v3.Tests
                     var emptyV3 = (await resourceV3.GetAllVersionsAsync("c", CancellationToken.None))
                         .ToList();
 
-                    var v2CanSeek = false;
-                    var v3CanSeek = false;
+                    var v2Stream = new MemoryStream();
+                    await resourceV2.CopyNupkgToStreamAsync(
+                        bNonNorm.Id,
+                        bNonNorm.Version,
+                        v2Stream,
+                        CancellationToken.None);
 
-                    using (var stream = await resourceV2.CopyNupkgToStreamAsync(bNonNorm.Id, bNonNorm.Version, CancellationToken.None))
-                    {
-                        v2CanSeek = stream.CanSeek;
-                    }
-
-                    using (var stream = await resourceV3.CopyNupkgToStreamAsync(bNonNorm.Id, bNonNorm.Version, CancellationToken.None))
-                    {
-                        v3CanSeek = stream.CanSeek;
-                    }
+                    var v3Stream = new MemoryStream();
+                    await resourceV3.CopyNupkgToStreamAsync(
+                        bNonNorm.Id,
+                        bNonNorm.Version,
+                        v3Stream,
+                        CancellationToken.None);
 
                     var depV2 = await resourceV2.GetDependencyInfoAsync(bNonNorm.Id, bNonNorm.Version, CancellationToken.None);
                     var depV3 = await resourceV3.GetDependencyInfoAsync(bNonNorm.Id, bNonNorm.Version, CancellationToken.None);
@@ -75,8 +80,8 @@ namespace NuGet.Protocol.Core.v3.Tests
                     Assert.True(versionsV2.SetEquals(versionsV3));
                     Assert.Equal(0, emptyV2.Count);
                     Assert.Equal(0, emptyV3.Count);
-                    Assert.True(v2CanSeek);
-                    Assert.True(v3CanSeek);
+                    Assert.True(v2Stream.Length > 0);
+                    Assert.True(v3Stream.Length > 0);
                     Assert.Equal(0, depV2.DependencyGroups.Count);
                     Assert.Equal(0, depV3.DependencyGroups.Count);
                     Assert.Null(depEmptyV2);

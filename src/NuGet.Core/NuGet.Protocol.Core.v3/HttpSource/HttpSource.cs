@@ -125,6 +125,7 @@ namespace NuGet.Protocol
                         requestFactory,
                         request.RequestTimeout,
                         request.DownloadTimeout,
+                        request.MaxTries,
                         log,
                         lockedToken);
 
@@ -218,6 +219,7 @@ namespace NuGet.Protocol
                 request.RequestFactory,
                 request.RequestTimeout,
                 request.DownloadTimeout,
+                request.MaxTries,
                 log,
                 token);
 
@@ -252,6 +254,7 @@ namespace NuGet.Protocol
             Func<HttpRequestMessage> requestFactory,
             TimeSpan requestTimeout,
             TimeSpan downloadTimeout,
+            int maxTries,
             ILogger log,
             CancellationToken cancellationToken)
         {
@@ -261,7 +264,8 @@ namespace NuGet.Protocol
             var request = new HttpRetryHandlerRequest(_httpClient, requestFactory)
             {
                 RequestTimeout = requestTimeout,
-                DownloadTimeout = downloadTimeout
+                DownloadTimeout = downloadTimeout,
+                MaxTries = maxTries
             };
 
             // Acquire the semaphore.

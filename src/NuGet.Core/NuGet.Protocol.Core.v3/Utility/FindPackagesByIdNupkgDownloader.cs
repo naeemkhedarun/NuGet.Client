@@ -8,6 +8,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using NuGet.Common;
+using NuGet.Packaging;
 using NuGet.Packaging.Core;
 using NuGet.Protocol.Core.Types;
 
@@ -15,10 +16,10 @@ namespace NuGet.Protocol
 {
     public class FindPackagesByIdNupkgDownloader
     {
-        private readonly object _nupkgCacheLock = new object();
+        private readonly object _cacheEntryLock = new object();
 
-        private readonly Dictionary<string, Task<NupkgEntry>> _nupkgCache =
-            new Dictionary<string, Task<NupkgEntry>>();
+        private readonly Dictionary<string, Task<CacheEntry>> _cacheEntries =
+            new Dictionary<string, Task<CacheEntry>>();
 
         private readonly HttpSource _httpSource;
         private readonly ILogger _logger;
@@ -39,10 +40,90 @@ namespace NuGet.Protocol
             _logger = logger;
         }
 
+        /// <summary>
+        /// Gets a <see cref="NuspecReader"/> from a .nupkg. If the URL cannot be fetched or there is a problem
+        /// processing the .nuspec, an exception is throw. This method uses HTTP caching to avoid downloading the
+        /// package over and over (unless <see cref="SourceCacheContext.DirectDownload"/> is specified).
+        /// </summary>
+        /// <param name="identity">The package identity.</param>
+        /// <param name="url">The URL of the .nupkg.</param>
+        /// <param name="cacheContext">The cache context.</param>
+        /// <param name="token">The cancellation token.</param>
+        /// <returns>The .nuspec reader.</returns>
+        public async Task<NuspecReader> GetNuspecReaderFromNupkgAsync(
+            PackageIdentity identity,
+            string url,
+            SourceCacheContext cacheContext,
+            CancellationToken token)
+        {
+            NuspecReader reader = null;
+
+            await ProcessNupkgStreamAsync(
+                identity,
+                url,
+                stream =>
+                {
+                    reader = PackageUtilities.OpenNuspecFromNupkg(identity.Id, stream, _logger);
+
+                    return Task.FromResult(true);
+                },
+                cacheContext,
+                token);
+
+            if (reader == null)
+            {
+                throw new FatalProtocolException(string.Format(
+                    CultureInfo.CurrentCulture,
+                    Strings.Log_FailedToGetNupkgStream,
+                    identity.Id));
+            }
+
+            return reader;
+        }
+
+        /// <summary>
+        /// Copies a .nupkg stream to the <paramref name="destination"/> stream. If the .nupkg cannot be found or if
+        /// there is a network problem, no stream copy occurs.
+        /// </summary>
+        /// <param name="identity">The package identity.</param>
+        /// <param name="url">The URL of the .nupkg.</param>
+        /// <param name="destination">The destination stream. The .nupkg will be copied to this stream.</param>
+        /// <param name="cacheContext">The cache context.</param>
+        /// <param name="token">The cancellation token.</param>
+        /// <returns>Returns true if the stream was copied, false otherwise.</returns>
         public async Task<bool> CopyNupkgToStreamAsync(
             PackageIdentity identity,
             string url,
             Stream destination,
+            SourceCacheContext cacheContext,
+            CancellationToken token)
+        {
+            return await ProcessNupkgStreamAsync(
+                identity,
+                url,
+                stream => stream.CopyToAsync(destination, token),
+                cacheContext,
+                token);
+        }
+
+        /// <summary>
+        /// Manages the different ways of getting a .nupkg stream when using the global HTTP cache. When a stream is
+        /// found, the <paramref name="processStreamAsync"/> method is invoked on said stream. This deals with the
+        /// complexity of <see cref="SourceCacheContext.DirectDownload"/>.
+        /// </summary>
+        /// <param name="identity">The package identity.</param>
+        /// <param name="url">The URL of the .nupkg to fetch.</param>
+        /// <param name="processStreamAsync">The method to process the stream.</param>
+        /// <param name="cacheContext">The cache context.</param>
+        /// <param name="token">The cancellation token.</param>
+        /// <returns>
+        /// Returns true if the stream was processed, false if the stream could not fetched (either from the HTTP cache
+        /// or from the network).
+        /// </returns>
+        private async Task<bool> ProcessNupkgStreamAsync(
+            PackageIdentity identity,
+            string url,
+            Func<Stream, Task> processStreamAsync,
             SourceCacheContext cacheContext,
             CancellationToken token)
         {
@@ -64,55 +145,92 @@ namespace NuGet.Protocol
             if (cacheContext.DirectDownload)
             {
                 // Don't read from the in-memory cache if we are doing a direct download.
-                var nupkgEntry = await CopyNupkgToStreamCoreAsync(
+                var cacheEntry = await ProcessStreamAndGetCacheEntryAsync(
                     identity,
                     url,
-                    destination,
+                    processStreamAsync,
                     cacheContext,
                     token);
 
                 // If we get back a cache file result from the cache, we can save it to the in-memory cache.
-                lock (_nupkgCacheLock)
+                lock (_cacheEntryLock)
                 {
-                    if (nupkgEntry.CacheFile != null && !_nupkgCache.ContainsKey(url))
+                    if (cacheEntry.CacheFile != null && !_cacheEntries.ContainsKey(url))
                     {
-                        _nupkgCache[url] = Task.FromResult(nupkgEntry);
+                        _cacheEntries[url] = Task.FromResult(cacheEntry);
                     }
                 }
 
                 // Process the NupkgEntry
-                return await CopyCacheFileToStreamAsync(nupkgEntry, destination, token);
+                return await ProcessCacheEntryAsync(cacheEntry, processStreamAsync, token);
             }
             else
             {
                 // Try to get the NupkgEntry from the in-memory cache. If we find a match, we can open the cache file
                 // and use that as the source stream, instead of going to the package source.
-                Task<NupkgEntry> nupkgEntryTask;
-                lock (_nupkgCacheLock)
+                Task<CacheEntry> nupkgEntryTask;
+                lock (_cacheEntryLock)
                 {
-                    if (!_nupkgCache.TryGetValue(url, out nupkgEntryTask))
+                    if (!_cacheEntries.TryGetValue(url, out nupkgEntryTask))
                     {
-                        nupkgEntryTask = CopyNupkgToStreamCoreAsync(
+                        nupkgEntryTask = ProcessStreamAndGetCacheEntryAsync(
                             identity,
                             url,
-                            destination,
+                            processStreamAsync,
                             cacheContext,
                             token);
 
-                        _nupkgCache[url] = nupkgEntryTask;
+                        _cacheEntries[url] = nupkgEntryTask;
                     }
                 }
 
                 var nupkgEntry = await nupkgEntryTask;
 
-                return await CopyCacheFileToStreamAsync(nupkgEntry, destination, token);
+                return await ProcessCacheEntryAsync(nupkgEntry, processStreamAsync, token);
             }
         }
 
-        private async Task<NupkgEntry> CopyNupkgToStreamCoreAsync(
+        private async Task<CacheEntry> ProcessStreamAndGetCacheEntryAsync(
             PackageIdentity identity,
             string url,
-            Stream destination,
+            Func<Stream, Task> processStreamAsync,
+            SourceCacheContext cacheContext,
+            CancellationToken token)
+        {
+            return await ProcessHttpSourceResultAsync(
+                identity,
+                url,
+                async httpSourceResult =>
+                {
+                    if (httpSourceResult == null ||
+                        httpSourceResult.Stream == null)
+                    {
+                        return new CacheEntry(cacheFile: null, alreadyProcessed: false);
+                    }
+
+                    if (httpSourceResult.CacheFile != null)
+                    {
+                        // Return the cache file name so that the caller can open the cache file directly
+                        // and copy it to the destination stream.
+                        return new CacheEntry(httpSourceResult.CacheFile, alreadyProcessed: false);
+                    }
+                    else
+                    {
+                        await processStreamAsync(httpSourceResult.Stream);
+
+                        // When the stream came from the network directly, there is not cache file name. This
+                        // happens when the caller enables DirectDownload.
+                        return new CacheEntry(cacheFile: null, alreadyProcessed: true);
+                    }
+                },
+                cacheContext,
+                token);
+        }
+        
+        private async Task<T> ProcessHttpSourceResultAsync<T>(
+            PackageIdentity identity,
+            string url,
+            Func<HttpSourceResult, Task<T>> processAsync,
             SourceCacheContext cacheContext,
             CancellationToken token)
         {
@@ -128,34 +246,11 @@ namespace NuGet.Protocol
                             "nupkg_" + identity.Id + "." + identity.Version.ToNormalizedString(),
                             httpSourceCacheContext)
                         {
-                            EnsureValidContents = stream => HttpStreamValidation.ValidateNupkg(url, stream)
+                            EnsureValidContents = stream => HttpStreamValidation.ValidateNupkg(url, stream),
+                            IgnoreNotFounds = true,
+                            MaxTries = 1
                         },
-                        async httpSourceResult =>
-                        {
-                            if (httpSourceResult.Stream == null)
-                            {
-                                return new NupkgEntry(wasCopied: false, cacheFileName: null);
-                            }
-
-                            if (httpSourceResult.CacheFile != null)
-                            {
-                                // Return the cache file name so that the caller can open the cache file directly
-                                // and copy it to the destination stream.
-                                return new NupkgEntry(
-                                    wasCopied: false,
-                                    cacheFileName: httpSourceResult.CacheFile);
-                            }
-                            else
-                            {
-                                await httpSourceResult.Stream.CopyToAsync(destination, token);
-
-                                // When the stream came from the network directly, there is not cache file name. This
-                                // happens when the caller enables DirectDownload.
-                                return new NupkgEntry(
-                                    wasCopied: true,
-                                    cacheFileName: null);
-                            }
-                        },
+                        async httpSourceResult => await processAsync(httpSourceResult),
                         _logger,
                         token);
                 }
@@ -184,20 +279,20 @@ namespace NuGet.Protocol
                 }
             }
 
-            return new NupkgEntry(wasCopied: false, cacheFileName: null);
+            return await processAsync(null);
         }
 
-        private async Task<bool> CopyCacheFileToStreamAsync(
-            NupkgEntry nupkgEntry,
-            Stream destination,
+        private async Task<bool> ProcessCacheEntryAsync(
+            CacheEntry cacheEntry,
+            Func<Stream, Task> processStreamAsync,
             CancellationToken token)
         {
-            if (nupkgEntry.WasCopied)
+            if (cacheEntry.AlreadyProcessed)
             {
                 return true;
             }
 
-            if (nupkgEntry.CacheFile == null)
+            if (cacheEntry.CacheFile == null)
             {
                 return false;
             }
@@ -205,11 +300,11 @@ namespace NuGet.Protocol
             // Acquire the lock on a file before we open it to prevent this process
             // from opening a file deleted by another HTTP request.
             using (var cacheStream = await ConcurrencyUtilities.ExecuteWithFileLockedAsync(
-                nupkgEntry.CacheFile,
+                cacheEntry.CacheFile,
                 lockedToken =>
                 {
                     return Task.FromResult(new FileStream(
-                        nupkgEntry.CacheFile,
+                        cacheEntry.CacheFile,
                         FileMode.Open,
                         FileAccess.Read,
                         FileShare.ReadWrite | FileShare.Delete,
@@ -218,22 +313,22 @@ namespace NuGet.Protocol
                 },
                 token))
             {
-                await cacheStream.CopyToAsync(destination, token);
+                await processStreamAsync(cacheStream);
 
                 return true;
             }
         }
 
-        private class NupkgEntry
+        private class CacheEntry
         {
-            public NupkgEntry(bool wasCopied, string cacheFileName)
+            public CacheEntry(string cacheFile, bool alreadyProcessed)
             {
-                WasCopied = wasCopied;
-                CacheFile = cacheFileName;
+                CacheFile = cacheFile;
+                AlreadyProcessed = alreadyProcessed;
             }
-
-            public bool WasCopied { get; }
+            
             public string CacheFile { get; }
+            public bool AlreadyProcessed { get; }
         }
     }
 }

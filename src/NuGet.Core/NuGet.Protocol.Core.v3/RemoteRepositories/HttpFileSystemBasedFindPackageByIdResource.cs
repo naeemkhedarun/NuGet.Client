@@ -82,15 +82,12 @@ namespace NuGet.Protocol
                 packageInfo.Identity,
                 async identity =>
                 {
-                    var reader = await PackageUtilities.OpenNuspecFromNupkgAsync(
-                        packageInfo.Identity.Id,
-                        _nupkgDownloader.OpenNupkgStreamAsync(
-                            packageInfo.Identity,
-                            packageInfo.ContentUri,
-                            CacheContext,
-                            cancellationToken),
-                        Logger);
-
+                    var reader = await _nupkgDownloader.GetNuspecReaderFromNupkgAsync(
+                        packageInfo.Identity,
+                        packageInfo.ContentUri,
+                        CacheContext,
+                        cancellationToken);
+                    
                     return reader.GetIdentity();
                 });
         }
@@ -102,16 +99,11 @@ namespace NuGet.Protocol
             PackageInfo packageInfo;
             if (packageInfos.TryGetValue(version, out packageInfo))
             {
-                
-
-                var reader = await PackageUtilities.OpenNuspecFromNupkgAsync(
-                    packageInfo.Identity.Id,
-                    _nupkgDownloader.OpenNupkgStreamAsync(
-                        packageInfo.Identity,
-                        packageInfo.ContentUri,
-                        CacheContext,
-                        cancellationToken),
-                    Logger);
+                var reader = await _nupkgDownloader.GetNuspecReaderFromNupkgAsync(
+                    packageInfo.Identity,
+                    packageInfo.ContentUri,
+                    CacheContext,
+                    cancellationToken);
 
                 // Populate the package identity cache while we have the .nuspec open.
                 var identity = reader.GetIdentity();

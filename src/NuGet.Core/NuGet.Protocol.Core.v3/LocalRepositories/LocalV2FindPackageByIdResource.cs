@@ -59,9 +59,9 @@ namespace NuGet.Protocol
 
             if (info != null)
             {
-                using (var stream = File.OpenRead(info.Path))
+                using (var fileStream = File.OpenRead(info.Path))
                 {
-                    await stream.CopyToAsync(destination, token);
+                    await fileStream.CopyToAsync(destination, token);
                     return true;
                 }
             }
