@@ -55,12 +55,12 @@ namespace NuGet.Protocol.Core.v3.Tests
                     var v2CanSeek = false;
                     var v3CanSeek = false;
 
-                    using (var stream = await resourceV2.GetNupkgStreamAsync(bNonNorm.Id, bNonNorm.Version, CancellationToken.None))
+                    using (var stream = await resourceV2.CopyNupkgToStreamAsync(bNonNorm.Id, bNonNorm.Version, CancellationToken.None))
                     {
                         v2CanSeek = stream.CanSeek;
                     }
 
-                    using (var stream = await resourceV3.GetNupkgStreamAsync(bNonNorm.Id, bNonNorm.Version, CancellationToken.None))
+                    using (var stream = await resourceV3.CopyNupkgToStreamAsync(bNonNorm.Id, bNonNorm.Version, CancellationToken.None))
                     {
                         v3CanSeek = stream.CanSeek;
                     }

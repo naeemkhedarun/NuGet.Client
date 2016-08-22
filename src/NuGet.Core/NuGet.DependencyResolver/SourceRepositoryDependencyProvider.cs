@@ -138,14 +138,15 @@ namespace NuGet.DependencyResolver
                     await _throttle.WaitAsync();
                 }
 
-                using (var nupkgStream = await _findPackagesByIdResource.GetNupkgStreamAsync(identity.Name, identity.Version, cancellationToken))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
+                cancellationToken.ThrowIfCancellationRequested();
 
-                    // If the stream is already available, do not stop in the middle of copying the stream
-                    // Pass in CancellationToken.None
-                    await nupkgStream.CopyToAsync(stream, bufferSize: 8192, cancellationToken: CancellationToken.None);
-                }
+                // If the stream is already available, do not stop in the middle of copying the stream
+                // Pass in CancellationToken.None
+                await _findPackagesByIdResource.CopyNupkgToStreamAsync(
+                    identity.Name,
+                    identity.Version,
+                    stream,
+                    CancellationToken.None);
             }
             catch (FatalProtocolException e) when (_ignoreFailedSources)
             {

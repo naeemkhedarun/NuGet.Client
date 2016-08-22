@@ -322,11 +322,11 @@ namespace NuGet.CommandLine.Test.Caching
             {
                 var result = InitializeHttpCacheResult(identity, sourceCacheContext);
 
-                Directory.CreateDirectory(Path.GetDirectoryName(result.WriteFile));
+                Directory.CreateDirectory(Path.GetDirectoryName(result.CacheFile));
 
-                File.Delete(result.WriteFile);
+                File.Delete(result.CacheFile);
 
-                File.Copy(packagePath, result.WriteFile);
+                File.Copy(packagePath, result.CacheFile);
             }
         }
 
@@ -336,7 +336,7 @@ namespace NuGet.CommandLine.Test.Caching
             {
                 var result = InitializeHttpCacheResult(identity, sourceCacheContext);
 
-                return File.Exists(result.WriteFile);
+                return File.Exists(result.CacheFile);
             }
         }
 

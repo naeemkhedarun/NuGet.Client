@@ -361,7 +361,7 @@ namespace NuGet.CommandLine.Test.Caching
             // Uncomment this to debug all executions of nuget.exe. Note that this can include setup or assertion
             // executions in addition to the nuget.exe execution that is under test.
             //
-            // nuGetExe.Debug = true;
+            nuGetExe.Debug = true;
 
             return nuGetExe;
         }

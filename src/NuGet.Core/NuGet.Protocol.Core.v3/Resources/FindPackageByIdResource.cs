@@ -33,7 +33,11 @@ namespace NuGet.Protocol.Core.Types
         /// </returns>
         public abstract Task<FindPackageByIdDependencyInfo> GetDependencyInfoAsync(string id, NuGetVersion version, CancellationToken token);
 
-        public abstract Task<Stream> GetNupkgStreamAsync(string id, NuGetVersion version, CancellationToken token);
+        public abstract Task<bool> CopyNupkgToStreamAsync(
+            string id,
+            NuGetVersion version,
+            Stream destination,
+            CancellationToken token);
 
         /// <summary>
         /// Gets the original ID and version for a package. This is useful when finding the

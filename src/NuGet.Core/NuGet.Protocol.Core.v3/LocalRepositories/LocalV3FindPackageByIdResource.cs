@@ -47,7 +47,7 @@ namespace NuGet.Protocol
             return Task.FromResult(GetVersions(id).AsEnumerable());
         }
 
-        public override Task<Stream> GetNupkgStreamAsync(string id, NuGetVersion version, CancellationToken token)
+        public override Task<Stream> CopyNupkgToStreamAsync(string id, NuGetVersion version, CancellationToken token)
         {
             var matchedVersion = GetVersion(id, version);
             Stream result = null;

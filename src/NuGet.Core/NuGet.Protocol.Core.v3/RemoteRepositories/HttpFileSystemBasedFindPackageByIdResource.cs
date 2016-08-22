@@ -102,6 +102,8 @@ namespace NuGet.Protocol
             PackageInfo packageInfo;
             if (packageInfos.TryGetValue(version, out packageInfo))
             {
+                
+
                 var reader = await PackageUtilities.OpenNuspecFromNupkgAsync(
                     packageInfo.Identity.Id,
                     _nupkgDownloader.OpenNupkgStreamAsync(
@@ -121,21 +123,26 @@ namespace NuGet.Protocol
             return null;
         }
 
-        public override async Task<Stream> GetNupkgStreamAsync(string id, NuGetVersion version, CancellationToken cancellationToken)
+        public override async Task<bool> CopyNupkgToStreamAsync(
+            string id,
+            NuGetVersion version,
+            Stream destination,
+            CancellationToken cancellationToken)
         {
             var packageInfos = await EnsurePackagesAsync(id, cancellationToken);
 
             PackageInfo packageInfo;
             if (packageInfos.TryGetValue(version, out packageInfo))
             {
-                return await _nupkgDownloader.OpenNupkgStreamAsync(
+                return await _nupkgDownloader.CopyNupkgToStreamAsync(
                     packageInfo.Identity,
                     packageInfo.ContentUri,
+                    destination,
                     CacheContext,
                     cancellationToken);
             }
 
-            return null;
+            return false;
         }
 
         private Task<SortedDictionary<NuGetVersion, PackageInfo>> EnsurePackagesAsync(string id, CancellationToken cancellationToken)
@@ -174,7 +181,7 @@ namespace NuGet.Protocol
                                 }
                                 catch
                                 {
-                                    Logger.LogWarning(string.Format(CultureInfo.CurrentCulture, Strings.Log_FileIsCorrupt, httpSourceResult.CacheFileName));
+                                    Logger.LogWarning(string.Format(CultureInfo.CurrentCulture, Strings.Log_FileIsCorrupt, httpSourceResult.CacheFile));
 
                                     throw;
                                 }
