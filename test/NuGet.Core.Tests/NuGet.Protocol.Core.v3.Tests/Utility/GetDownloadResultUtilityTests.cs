@@ -170,7 +170,7 @@ namespace NuGet.Protocol.Tests
                     inUsePath,
                     FileMode.Create,
                     FileAccess.ReadWrite,
-                    FileShare.Read,
+                    FileShare.None,
                     bufferSize: 8192,
                     options: FileOptions.Asynchronous | FileOptions.DeleteOnClose))
                 {
