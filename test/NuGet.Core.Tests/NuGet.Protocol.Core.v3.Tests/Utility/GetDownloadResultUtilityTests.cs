@@ -168,11 +168,9 @@ namespace NuGet.Protocol.Tests
 
                 using (new FileStream(
                     inUsePath,
-                    FileMode.Create,
-                    FileAccess.ReadWrite,
-                    FileShare.None,
-                    bufferSize: 8192,
-                    options: FileOptions.Asynchronous | FileOptions.DeleteOnClose))
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read))
                 {
                     // Act
                     GetDownloadResultUtility.CleanUpDirectDownloads(downloadContext);
